@@ -1,0 +1,41 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  labels:
+    app: back-end
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: back-end
+  strategy: {}
+  template:
+    metadata:
+      labels:
+        app: back-end
+    spec:
+      containers:
+      - name: back-end
+        image: public.ecr.aws/y1b0a4i8/vpc-lattice-examples:backend
+        imagePullPolicy: Always
+        env:
+        - name: LATTICEURL
+          value: "http://LATTICE_URL/lambda"
+        ports:
+          - containerPort: 8081
+        resources: {}
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: backend
+spec:
+  selector:
+    app: back-end
+  type: ClusterIP
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 8081
