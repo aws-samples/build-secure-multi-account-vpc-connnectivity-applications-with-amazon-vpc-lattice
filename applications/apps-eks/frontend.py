@@ -4,16 +4,15 @@ import sys
 import requests
 import json
 
-if os.getenv("LAMBDAURL") or os.getenv("BACKENDURL") is None:
-    print(f'[ERROR] no Lattice URLs configured inside Pod')
+if os.getenv("LATTICEURL") is None:
+    print(f'[ERROR] no Lattice URL configured inside Pod')
     sys.exit(1)
 else: 
     app = Flask(__name__, template_folder='./templates')
     @app.route('/', defaults={'path': ''})
     @app.route('/<path:path>')
     def home(path): #/backend /lambda
-        lambda_url = "{}/{}".format(os.getenv("LAMBDAURL"), path)
-        backend_url = "{}/{}".format(os.getenv("BACKENDURL"), path)
+        backend_url = "{}/{}".format(os.getenv("LATTICEURL"), path)
         if path == "backend":
             print(backend_url) #debug
             try:
@@ -23,9 +22,8 @@ else:
                 return("Something went wrong, check Lattice URL")
             return render_template("index.html", icon = 'static/images/eks.png', message = "Powered by:", aws_reg = region['message'] )
         elif path == "lambda":
-            print(lambda_url) #debug
             try:
-                region = requests.get(lambda_url).text
+                region = requests.get(backend_url).text
             except OSError as e:
                 return("Something went wrong, check Lattice URL")
             return render_template("index.html", icon = 'static/images/lambda.png', message = "Powered by:", aws_reg = region)

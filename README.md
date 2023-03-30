@@ -166,7 +166,7 @@ kubectl config use-context cluster1
 kubectl apply -f ./vpc-lattice/routes/frontend-export.yaml
 
 kubectl config use-context cluster2
-kubectl apply -f ./vpc-lattice/
+kubectl apply -f ./vpc-lattice/routes/backend-export.yaml
 
 export LambdaArn=$(aws cloudformation describe-stacks --stack-name lambda-application --query 'Stacks[0].Outputs[?OutputKey == `LambdaArn`].OutputValue' --output text --region $AWS_REGION)
 export ASGVpcId=$(aws cloudformation describe-stacks --stack-name asg-application --query 'Stacks[0].Outputs[?OutputKey == `VpcId`].OutputValue' --output text --region $AWS_REGION)
@@ -184,8 +184,8 @@ export SERVICE1=$(aws cloudformation describe-stacks --stack-name lattice-servic
 export SERVICE2=$(aws cloudformation describe-stacks --stack-name lattice-services --query 'Stacks[0].Outputs[?OutputKey == `Service2`].OutputValue' --output text --region $AWS_REGION)
 export SERVICE3=$(aws cloudformation describe-stacks --stack-name lattice-services --query 'Stacks[0].Outputs[?OutputKey == `Service3`].OutputValue' --output text --region $AWS_REGION)
 export SERVICE4=$(aws cloudformation describe-stacks --stack-name lattice-services --query 'Stacks[0].Outputs[?OutputKey == `Service4`].OutputValue' --output text --region $AWS_REGION)
-export TARGETCLUSTER1=arn:aws:vpc-lattice:us-west-2:225963075789:targetgroup/tg-032600d2e013a5b85
-export TARGETCLUSTER2=arn:aws:vpc-lattice:us-west-2:225963075789:targetgroup/tg-07b330d93afe85f0a
+export TARGETCLUSTER1={TARGET_GROUP_ARN}
+export TARGETCLUSTER2={TARGET_GROUP_ARN}
 export TARGETLAMBDA=$(aws cloudformation describe-stacks --stack-name lattice-targets --query 'Stacks[0].Outputs[?OutputKey == `LatticeLambdaTarget`].OutputValue' --output text --region $AWS_REGION)
 export TARGETASG=$(aws cloudformation describe-stacks --stack-name lattice-targets --query 'Stacks[0].Outputs[?OutputKey == `LatticeASGTarget`].OutputValue' --output text --region $AWS_REGION)
 
@@ -205,27 +205,15 @@ kubectl port-forward svc/frontend 8080:80
 
 ![base_path](assets/base_path.png "Frotend application base path")
 
-If you use the path */backend*, we are calling Service2 (which is the *backend* application hosted in *cluster2*). The *backend* application will also consume Service3 (Lambda function) to retrieve the AWS Region where the application is located. You will see in your browser the following:
+If you use the path */backend*, we are calling the *backend* application hosted in *cluster2*. The *backend* application will also the Lambda function to retrieve the AWS Region where the application is located. You will see in your browser the following:
 
 ![eks_path](assets/eks_path.png "Frotend application eks path")
 
-* Both EKS Clusters are talking to each other using VPC Lattice - more specifically *cluster1* to *cluster2* - using Service2. 
-* In addition, EKS cluster2 is talking to the Lambda function using Service3.
-
-If you use the path */lambda*, we are calling Service3 (which is the Lambda function). You will see in your browser the following:
+If you use the path */lambda*, *cluster1* is calling directly the Lamba function to get the AWS Region. You will see in your browser the following:
 
 ![lambda_path](assets/lambda_path.png "Frotend application lambda path")
 
-* EKS cluster1 is talking directly to the Lambda function using VPC Lattice Service3.
-
-Now, let's check if **the Auto Scaling group can consume the Lambda function**. Go to the EC2 console, select any of the *web-server-instance* EC2 instances, and click *Connect*. Connect to the EC2 instance using Session Manager, and perform the following tests (check Service3's domain name either by using the CLI or in the AWS management console):
-
-```bash
-dig {SERVICE 3 DOMAIN NAME}
-curl {SERVICE 3 DOMAIN NAME}
-```
-
-When doing the *dig* command, you should receive a link-local address from the VPC (so the request to the service will be forwarded to Lattice). If when applying the *curl* command you get the AWS Region you are working on, the connection to the Lambda function using VPC Lattice is working as expected.
+* EKS cluster1 is talking directly to the Lambda function.
 
 ## Clean-up
 

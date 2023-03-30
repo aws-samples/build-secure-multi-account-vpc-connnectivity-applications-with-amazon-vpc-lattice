@@ -3,18 +3,18 @@ import os
 import sys
 import requests
 
-if os.getenv("LAMBDAURL") is None:
+if os.getenv("LATTICEURL") is None:
     print(f'[ERROR] no Lambda URL configured inside Pod')
     sys.exit(1)
 else: 
-    print(os.getenv("LAMBDAURL"))
+    print(os.getenv("LATTICEURL"))
 
     app = Flask(__name__)
     @app.route('/', defaults={'path': ''})
     @app.route('/<path:path>')
     def home(path):
         try:
-            output = requests.get(os.getenv("LAMBDAURL")).text
+            output = requests.get(os.getenv("LATTICEURL")).text
         except OSError as e:
             return("Something went wrong, check Lattice URL")
         data = {'message': output, 'code': 'SUCCESS'}
