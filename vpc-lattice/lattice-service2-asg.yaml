@@ -1,0 +1,86 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: "Amazon VPC Lattice - Auto Scaling group VPC Lattice Service"
+
+Parameters:
+  VpcId:
+    Type: String
+    Description: VPC ID
+  InstanceID1:
+    Type: String
+    Description: Instance 1 ID
+  InstanceID2:
+    Type: String
+    Description: Instance 2 ID
+
+Resources:
+# ---------- AMAZON VPC LATTICE RESOURCES ----------
+  LatticeASGTarget:
+    Type: AWS::VpcLattice::TargetGroup
+    Properties:
+      Name: asg-target
+      Type: INSTANCE
+      Config:
+        Protocol: HTTP
+        Port: 80
+        ProtocolVersion: HTTP1
+        VpcIdentifier: !Ref VpcId
+        HealthCheck:
+          Enabled: false
+      Targets:
+        - Id: !Ref InstanceID1
+          Port: 80
+        - Id: !Ref InstanceID2
+          Port: 80
+  
+  LatticeASGService:
+    Type: AWS::VpcLattice::Service
+    Properties:
+      Name: asg-service
+      AuthType: NONE
+  
+  LatticeASGAccessLogSubscription:
+    Type: AWS::VpcLattice::AccessLogSubscription
+    Properties:
+      ResourceIdentifier: !Ref LatticeASGService
+      DestinationArn: !GetAtt LatticeASGLogGroup.Arn
+  
+  LatticeASGListener:
+    Type: AWS::VpcLattice::Listener
+    Properties:
+      ServiceIdentifier: !Ref LatticeASGService
+      Protocol: HTTP
+      Port: 80
+      DefaultAction:
+        Forward:
+          TargetGroups:
+            - TargetGroupIdentifier: !Ref LatticeASGTarget
+              Weight: 100
+  
+  LatticeASGAuthPolicy:
+    Type: AWS::VpcLattice::AuthPolicy
+    Properties:
+      ResourceIdentifier: !Ref LatticeASGService
+      Policy:
+        Statement:
+          - Effect: Allow
+            Principal: '*'
+            Action: '*'
+            Resource: '*'
+
+# ---------- LOG GROUP ----------
+  LatticeASGLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      Tags:
+        - Key: Name
+          Value: lattice-asg-lg
+
+Outputs:
+  ASGServiceId:
+    Description: VPC Lattice Service - Auto Scaling group
+    Value: !Ref LatticeASGService
+  
+  LambdaASGDomainName:
+    Description: VPC Lattice Service - Domain Name
+    Value: !GetAtt LatticeASGService.DnsEntry.DomainName

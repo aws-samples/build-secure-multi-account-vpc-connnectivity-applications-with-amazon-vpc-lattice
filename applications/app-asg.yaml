@@ -1,0 +1,442 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: "Amazon VPC Lattice - Auto Scaling group Application"
+
+Parameters:
+  ServiceNetwork:
+    Type: String
+    Description: "Service Network ID."
+  LatestAmiId:
+    Type: "AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>"
+    Default: "/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2"
+
+Resources:
+# ---------- VPC, IGW, AND SUBNETS ----------
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.4.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      InstanceTenancy: default
+      Tags: 
+        - 
+          Key: Name
+          Value: asg-vpc
+  
+  IPv6CIDR:
+    Type: AWS::EC2::VPCCidrBlock
+    Properties:
+      AmazonProvidedIpv6CidrBlock: true
+      VpcId: !Ref VPC
+
+  WorkloadSubnet1:
+    DependsOn:
+      - IPv6CIDR
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Sub ${AWS::Region}a
+      CidrBlock: 10.4.0.0/24
+      Ipv6CidrBlock:
+        Fn::Sub:
+          - "${VpcPart}${SubnetPart}"
+          - SubnetPart: '01::/64'
+            VpcPart: !Select [ 0, !Split [ '00::/56', !Select [ 0, !GetAtt VPC.Ipv6CidrBlocks ]]]
+      Tags:
+        -
+          Key: Name
+          Value: asg-workload-subnet-1
+
+  WorkloadSubnet2:
+    DependsOn:
+      - IPv6CIDR
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Sub ${AWS::Region}b
+      CidrBlock: 10.4.1.0/24
+      Ipv6CidrBlock:
+        Fn::Sub:
+          - "${VpcPart}${SubnetPart}"
+          - SubnetPart: '02::/64'
+            VpcPart: !Select [ 0, !Split [ '00::/56', !Select [ 0, !GetAtt VPC.Ipv6CidrBlocks ]]]
+      Tags:
+        -
+          Key: Name
+          Value: asg-workload-subnet-2
+
+  EndpointsSubnet1:
+    DependsOn:
+      - IPv6CIDR
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Sub ${AWS::Region}a
+      CidrBlock: 10.4.2.0/24
+      Ipv6CidrBlock:
+        Fn::Sub:
+          - "${VpcPart}${SubnetPart}"
+          - SubnetPart: '03::/64'
+            VpcPart: !Select [ 0, !Split [ '00::/56', !Select [ 0, !GetAtt VPC.Ipv6CidrBlocks ]]]
+      Tags:
+        -
+          Key: Name
+          Value: asg-endpoints-subnet-1
+
+  EndpointsSubnet2:
+    DependsOn:
+      - IPv6CIDR
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Sub ${AWS::Region}b
+      CidrBlock: 10.4.3.0/24
+      Ipv6CidrBlock:
+        Fn::Sub:
+          - "${VpcPart}${SubnetPart}"
+          - SubnetPart: '04::/64'
+            VpcPart: !Select [ 0, !Split [ '00::/56', !Select [ 0, !GetAtt VPC.Ipv6CidrBlocks ]]]
+      Tags:
+        -
+          Key: Name
+          Value: asg-endpoints-subnet-2
+   
+# ---------- ROUTE TABLES ----------
+  WorkloadRouteTable1:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags: 
+        -
+          Key: Name
+          Value: asg-workload-rt-1
+
+  WorkloadRouteTableAssociation1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref WorkloadRouteTable1
+      SubnetId: !Ref WorkloadSubnet1
+
+  WorkloadRouteTable2:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags: 
+        -
+          Key: Name
+          Value: asg-workload-rt-2
+
+  WorkloadRouteTableAssociation2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref WorkloadRouteTable2
+      SubnetId: !Ref WorkloadSubnet2
+
+  EndpointsRouteTable1:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags: 
+        -
+          Key: Name
+          Value: asg-endpoints-rt-1
+
+  EndpointsRouteTableAssocation1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref EndpointsRouteTable1
+      SubnetId: !Ref EndpointsSubnet1
+
+  EndpointsRouteTable2:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags: 
+        -
+          Key: Name
+          Value: asg-endpoints-rt-2
+
+  EndpointsRouteTableAssocation2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref EndpointsRouteTable2
+      SubnetId: !Ref EndpointsSubnet2
+
+# ---------- LATTICE VPC ASSOCIATION ----------
+  LatticeASGVPCAssociation:
+    Type: AWS::VpcLattice::ServiceNetworkVpcAssociation
+    Properties:
+      SecurityGroupIds:
+        - !Ref LatticeSecurityGroup
+      ServiceNetworkIdentifier: !Ref ServiceNetwork
+      VpcIdentifier: !Ref VPC
+    
+# ---------- SECURITY GROUPS ----------
+  InstanceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: instance-sg
+      GroupDescription: Instance Security Group
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - Description: Allowing all IPv4 traffic
+          IpProtocol: "-1"
+          CidrIp: 0.0.0.0/0
+  
+  EndpointsSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: endpoints-sg
+      GroupDescription: Endpoints Security Group
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - Description: Allowing HTTPS
+          IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          SourceSecurityGroupId: !Ref InstanceSecurityGroup
+  
+  LatticeSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: lattice-sg
+      GroupDescription: VPC Lattice Security Group
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - Description: Allowing HTTP
+          IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          SourceSecurityGroupId: !Ref InstanceSecurityGroup
+        - Description: Allowing HTTPS
+          IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          SourceSecurityGroupId: !Ref InstanceSecurityGroup
+
+# ---------- SSM ENDPOINTS ----------
+  SSMProdVPCEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.ssm
+      VpcId: !Ref VPC
+      SubnetIds:
+        - !Ref EndpointsSubnet1
+        - !Ref EndpointsSubnet2
+      SecurityGroupIds:
+        - !Ref EndpointsSecurityGroup
+      VpcEndpointType: Interface
+      PrivateDnsEnabled: True
+
+  SSMMessagesProdVPCEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.ssmmessages
+      VpcId: !Ref VPC
+      SubnetIds:
+        - !Ref EndpointsSubnet1
+        - !Ref EndpointsSubnet2
+      SecurityGroupIds:
+        - !Ref EndpointsSecurityGroup
+      VpcEndpointType: Interface
+      PrivateDnsEnabled: True
+
+  EC2MessagesProdVPCEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.ec2messages
+      VpcId: !Ref VPC
+      SubnetIds:
+        - !Ref EndpointsSubnet1
+        - !Ref EndpointsSubnet2
+      SecurityGroupIds:
+        - !Ref EndpointsSecurityGroup
+      VpcEndpointType: Interface
+      PrivateDnsEnabled: True
+
+# ---------- LAUNCH TEMPLATE AND AUTOSCALING GROUP ----------
+  WebAppLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateName: web-app-launchtemplate
+      VersionDescription: v1.0
+      LaunchTemplateData:
+        IamInstanceProfile:
+          Arn: !GetAtt EC2SSMInstanceProfileWorkloads.Arn
+        InstanceType: t3.micro
+        ImageId: !Ref LatestAmiId
+        SecurityGroupIds:
+          - !Ref InstanceSecurityGroup
+        TagSpecifications:
+          - ResourceType: instance
+            Tags:
+              - Key: Name
+                Value: web-server-instance
+        UserData: 
+          Fn::Base64: !Sub | 
+            #!/bin/bash
+            sudo su
+            yum update -y
+            yum install -y httpd
+            systemctl start httpd
+            systemctl enable httpd
+            echo "Welcome to the single WebPage!! This is host $(hostname -f)" > /var/www/html/index.html
+
+  WebAppASG:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+        AutoScalingGroupName: web-app-asg
+        DesiredCapacity: "2"
+        MaxSize: "2"
+        MinSize: "2"
+        LaunchTemplate: 
+          LaunchTemplateId: !Ref WebAppLaunchTemplate
+          Version: !GetAtt WebAppLaunchTemplate.LatestVersionNumber
+        VPCZoneIdentifier: 
+          - !Ref WorkloadSubnet1
+          - !Ref WorkloadSubnet2
+
+# ---------- IAM ROLES ----------
+  EC2SSMIAMRoleWorkloads:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - !Sub arn:${AWS::Partition}:iam::aws:policy/AmazonSSMManagedInstanceCore
+      Path: /
+
+  EC2SSMInstanceProfileWorkloads:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: /
+      Roles:
+        - !Ref EC2SSMIAMRoleWorkloads
+
+# ---------- CUSTOM RESOURCE (Obtaining Instance IDs from ASG) ----------
+  InstancesASG:
+    Type: Custom::InstancesASG
+    DependsOn:
+      - WebAppASG
+    Properties:
+      ServiceToken: !GetAtt InstancesASGFunction.Arn
+      ASGName: !Ref WebAppASG
+
+  InstancesASGFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: AllowAutoScalingActions
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - autoscaling:DescribeAutoScalingGroups
+                Resource:
+                  - "*"
+      ManagedPolicyArns:
+        - !Sub arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
+  InstancesASGFunctionLogGroup:
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W84
+            reason: Encryption not required for this log group
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${InstancesASGFunction}
+      RetentionInDays: 7
+
+  InstancesASGFunction:
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W58
+            reason: CWL permissions granted by use of AWSLambdaBasicExecutionRole
+          - id: W89
+            reason: No requirement for this function to be in a VPC
+          - id: W92
+            reason: No requirement to limit simultaneous executions
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Obtaining Instances from Auto Scaling group
+      Runtime: python3.9
+      Timeout: 10
+      Role: !GetAtt InstancesASGFunctionRole.Arn
+      Handler: index.lambda_handler
+      Code:
+        ZipFile: |-
+          import logging
+          import boto3
+          import json
+          import cfnresponse
+          from botocore.exceptions import ClientError
+          log = logging.getLogger("handler")
+          log.setLevel(logging.INFO)
+          def lambda_handler(event, context):
+              try:
+                  log.info("Received event: %s", json.dumps(event))
+                  # Obtaining AutoScaling group name
+                  #asg_name = event["ResourceProperties"]["ASGName"]
+                  asg_name="web-app-asg"
+                  # Initialize boto3 client
+                  asg = boto3.client('autoscaling')
+                  
+                  # Empty string of instance IDs
+                  instance_ids = []
+                  # We obtain the Auto Scaling group information
+                  asg_information = asg.describe_auto_scaling_groups(AutoScalingGroupNames=[asg_name])
+                  # We get the Instance IDs of the ASG
+                  for i in asg_information['AutoScalingGroups']:
+                      for k in i['Instances']:
+                          instance_ids.append(k['InstanceId'])
+
+                  # Returning data
+                  responseData = {}
+                  responseData['InstanceIDs'] = instance_ids
+
+                  # Returning the Instance IDs
+                  cfnresponse.send(event, context, cfnresponse.SUCCESS, responseData)
+              
+              except:
+                  log.exception("whoops")
+                  cfnresponse.send(
+                      event,
+                      context,
+                      cfnresponse.FAILED,
+                      {},
+                      reason="Caught exception, check logs",
+                  )
+
+Outputs:
+  VpcId:
+    Description: Amazon VPC ID
+    Value: !Ref VPC
+  InstanceID1:
+    Description: Instance 1 ID
+    Value: !Select [0, !GetAtt InstancesASG.InstanceIDs]
+  InstanceID2:
+    Description: Instance 2 ID
+    Value: !Select [1, !GetAtt InstancesASG.InstanceIDs]
+  LatticeSecurityGroup:
+    Description: Security Group (Lattice VPC association) ID
+    Value: !Ref LatticeSecurityGroup

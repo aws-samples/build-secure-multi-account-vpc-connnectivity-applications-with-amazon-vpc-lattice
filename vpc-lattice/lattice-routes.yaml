@@ -1,0 +1,118 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: "Amazon VPC Lattice - Routing configuration"
+
+Parameters:
+  Service1:
+    Type: String
+    Description: Amazon VPC Lattice Service 1
+  Service2:
+    Type: String
+    Description: Amazon VPC Lattice Service 2
+  Service3:
+    Type: String
+    Description: Amazon VPC Lattice Service 3
+  Service4:
+    Type: String
+    Description: Amazon VPC Lattice Service 4
+  TargetGroupCluster1:
+    Type: String
+    Description: Cluster 1 - VPC Lattice Target Group
+  TargetGroupCluster2:
+    Type: String
+    Description: Cluster 2 - VPC Lattice Target Group
+  TargetGroupLambda:
+    Type: String
+    Description: AWS Lambda - VPC Lattice Target Group
+  TargetGroupASG:
+    Type: String
+    Description: AutoScaling group - VPC Lattice Target Group 
+
+Resources:
+# ---------- SERVICE 1 LISTENER ----------
+  Service1Listener:
+    Type: AWS::VpcLattice::Listener
+    Properties:
+      ServiceIdentifier: !Ref Service1
+      Protocol: HTTP
+      Port: 80
+      DefaultAction:
+        Forward:
+          TargetGroups:
+            - TargetGroupIdentifier: !Ref TargetGroupCluster1
+              Weight: 100
+
+# ---------- SERVICE 2 LISTENER ----------
+  Service2Listener:
+    Type: AWS::VpcLattice::Listener
+    Properties:
+      ServiceIdentifier: !Ref Service3
+      Protocol: HTTP
+      Port: 80
+      DefaultAction:
+        Forward:
+          TargetGroups:
+            - TargetGroupIdentifier: !Ref TargetGroupCluster2
+              Weight: 100
+
+# ---------- SERVICE 3 LISTENER ----------
+  Service3Listener:
+    Type: AWS::VpcLattice::Listener
+    Properties:
+      ServiceIdentifier: !Ref Service3
+      Protocol: HTTP
+      Port: 80
+      DefaultAction:
+        Forward:
+          TargetGroups:
+            - TargetGroupIdentifier: !Ref TargetGroupLambda
+              Weight: 100
+  
+  # Service3BackendRule:
+  #   Type: AWS::VpcLattice::Rule
+  #   Properties:
+  #     ServiceIdentifier: !Ref Service3
+  #     ListenerIdentifier: !Ref Service3Listener
+  #     Name: backend-rule-service3
+  #     Priority: 10
+  #     Match:
+  #       HttpMatch:
+  #         PathMatch:
+  #           Match:
+  #             Prefix: /backend
+  #     Action:
+  #       Forward:
+  #         TargetGroups:
+  #           - TargetGroupIdentifier: !Ref TargetGroupCluster2
+  #             Weight: 100
+  
+  # Service3LambdaRule:
+  #   Type: AWS::VpcLattice::Rule
+  #   Properties:
+  #     ServiceIdentifier: !Ref Service3
+  #     ListenerIdentifier: !Ref Service3Listener
+  #     Name: lambda-rule-service3
+  #     Priority: 20
+  #     Match:
+  #       HttpMatch:
+  #         PathMatch:
+  #           Match:
+  #             Prefix: /lambda
+  #     Action:
+  #       Forward:
+  #         TargetGroups:
+  #           - TargetGroupIdentifier: !Ref TargetGroupLambda
+  #             Weight: 100
+
+# ---------- SERVICE 2 LISTENER ----------
+  Service4Listener:
+    Type: AWS::VpcLattice::Listener
+    Properties:
+      ServiceIdentifier: !Ref Service4
+      Protocol: HTTP
+      Port: 80
+      DefaultAction:
+        Forward:
+          TargetGroups:
+            - TargetGroupIdentifier: !Ref TargetGroupASG
+              Weight: 100

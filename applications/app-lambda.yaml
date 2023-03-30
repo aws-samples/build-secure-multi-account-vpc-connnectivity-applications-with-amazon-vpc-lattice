@@ -1,0 +1,200 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: "Amazon VPC Lattice - AWS Lambda Application"
+
+Resources:
+# ---------- IAM ROLE (LAMBDA FUNCTION) ----------
+  LambdaFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - !Sub arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        - !Sub arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+
+# ---------- CLOUDWATCH LOG GROUPS ----------
+  FunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${LambdaFunction}
+      RetentionInDays: 7
+
+# ---------- LAMBDA FUNCTION ----------
+  LambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: "Obtaining the AWS Region where the Lambda is located."
+      Runtime: python3.9
+      Timeout: 10
+      Role: !GetAtt LambdaFunctionRole.Arn
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroup
+        SubnetIds:
+          - !Ref LambdaSubnet1
+          - !Ref LambdaSubnet2
+      Handler: index.lambda_handler
+      Code: 
+        ZipFile: |-
+          import json
+          import logging
+          import random
+          import string
+          import os
+          import boto3
+
+          log = logging.getLogger("handler")
+          log.setLevel(logging.INFO)
+
+          def lambda_handler(event, context):
+              try:
+                  # We obtain the AWS Region where the Lambda function is located
+                  region = os.environ.get('AWS_REGION')
+                  # We log the event received
+                  log.info("Received event: %s", json.dumps(event))
+
+                  # Return value
+                  response = region
+                  return {
+                    "statusCode": 200,
+                    "statusDescription": "200 OK",
+                    "body": response
+                  }
+
+              except Exception as e:
+                  log.exception("whoops")
+                  log.info(e)
+
+                  # Return exception error
+                  return {
+                    "statusCode": 500,
+                    "statusDescription": "500 Internal Server Error",
+                    "body": "Server error - check lambda logs\n"
+                  }
+
+# ---------- VPC RESOURCES ----------
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.3.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      InstanceTenancy: default
+      Tags: 
+        - 
+          Key: Name
+          Value: lambda-vpc
+  
+  IPv6CIDR:
+    Type: AWS::EC2::VPCCidrBlock
+    Properties:
+      AmazonProvidedIpv6CidrBlock: true
+      VpcId: !Ref VPC
+
+  LambdaSubnet1:
+    DependsOn:
+      - IPv6CIDR
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Sub ${AWS::Region}a
+      CidrBlock: 10.3.0.0/24
+      Ipv6CidrBlock:
+        Fn::Sub:
+          - "${VpcPart}${SubnetPart}"
+          - SubnetPart: '01::/64'
+            VpcPart: !Select [ 0, !Split [ '00::/56', !Select [ 0, !GetAtt VPC.Ipv6CidrBlocks ]]]
+      Tags:
+        - Key: Name
+          Value: lambda-subnet-1
+
+  LambdaSubnet2:
+    DependsOn:
+      - IPv6CIDR
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Sub ${AWS::Region}b
+      CidrBlock: 10.3.1.0/24
+      Ipv6CidrBlock:
+        Fn::Sub:
+          - "${VpcPart}${SubnetPart}"
+          - SubnetPart: '02::/64'
+            VpcPart: !Select [ 0, !Split [ '00::/56', !Select [ 0, !GetAtt VPC.Ipv6CidrBlocks ]]]
+      Tags:
+        - Key: Name
+          Value: lambda-subnet-2
+   
+# ---------- ROUTE TABLES ----------
+  LambdaRouteTable1:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags: 
+        -
+          Key: Name
+          Value: lambda-rt-1
+
+  LambdaRouteTableAssociation1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref LambdaRouteTable1
+      SubnetId: !Ref LambdaSubnet1
+
+  LambdaRouteTable2:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags: 
+        -
+          Key: Name
+          Value: lambda-rt-2
+
+  LambdaRouteTableAssociation2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref LambdaRouteTable2
+      SubnetId: !Ref LambdaSubnet2
+  
+# ---------- SECURITY GROUPS ----------  
+  LatticeSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: lambda-vpc-lattice-sg
+      GroupDescription: VPC Lattice Security Group
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - Description: Allowing HTTP
+          IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          SourceSecurityGroupId: !Ref LambdaSecurityGroup
+        - Description: Allowing HTTPS
+          IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          SourceSecurityGroupId: !Ref LambdaSecurityGroup
+
+  LambdaSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: lambda-vpc-sg
+      GroupDescription: Lambda in VPC Security Group
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - Description: Allowing all traffic
+          IpProtocol: "-1"
+          CidrIp: 0.0.0.0/0
+  
+Outputs:
+  LambdaArn:
+    Description: "Lambda function ARN"
+    Value: !GetAtt LambdaFunction.Arn

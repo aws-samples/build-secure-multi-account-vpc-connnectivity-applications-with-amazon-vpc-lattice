@@ -21,8 +21,10 @@ spec:
         image: public.ecr.aws/y1b0a4i8/vpc-lattice-examples:frontend
         imagePullPolicy: Always
         env:
-        - name: LATTICEURL
-          value: "http://LATTICE_URL"
+          - name: LAMBDAURL
+            value: "http://service3-00e1705d843acd696.7d67968.vpc-lattice-svcs.us-west-2.on.aws"
+          - name: BACKENDURL
+            value: "http://service2-019aa4ee617c3e5c0.7d67968.vpc-lattice-svcs.us-west-2.on.aws"
         ports:
           - containerPort: 8080
         resources: {}

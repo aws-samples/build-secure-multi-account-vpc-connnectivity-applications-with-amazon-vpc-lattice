@@ -1,0 +1,179 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: "Amazon VPC Lattice - VPC Lattice Services"
+
+Parameters:
+  ServiceNetwork:
+    Type: String
+    Description: Service Network ID.
+
+Resources:
+# ---------- SERVICE1: EKS CLUSTER1 ----------
+  LatticeService1:
+    Type: AWS::VpcLattice::Service
+    Properties:
+      Name: service1
+  
+  LatticeService1SNAssociation:
+    Type: AWS::VpcLattice::ServiceNetworkServiceAssociation
+    Properties:
+      ServiceIdentifier: !Ref LatticeService1
+      ServiceNetworkIdentifier: !Ref ServiceNetwork
+  
+  LatticeService1AccessLogSubscription:
+    Type: AWS::VpcLattice::AccessLogSubscription
+    Properties:
+      ResourceIdentifier: !Ref LatticeService1
+      DestinationArn: !GetAtt Service1LogGroup.Arn
+
+  LatticeService1AuthPolicy:
+    Type: AWS::VpcLattice::AuthPolicy
+    Properties:
+      ResourceIdentifier: !Ref LatticeService1
+      Policy:
+        Statement:
+          - Effect: Allow
+            Principal: '*'
+            Action: '*'
+            Resource: '*'
+
+  Service1LogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      Tags:
+        - Key: Name
+          Value: lattice-service1-lg
+
+# ---------- SERVICE2: EKS CLUSTER2 ----------
+  LatticeService2:
+    Type: AWS::VpcLattice::Service
+    Properties:
+      Name: service2
+  
+  LatticeService2SNAssociation:
+    Type: AWS::VpcLattice::ServiceNetworkServiceAssociation
+    Properties:
+      ServiceIdentifier: !Ref LatticeService2
+      ServiceNetworkIdentifier: !Ref ServiceNetwork
+  
+  LatticeService2AccessLogSubscription:
+    Type: AWS::VpcLattice::AccessLogSubscription
+    Properties:
+      ResourceIdentifier: !Ref LatticeService2
+      DestinationArn: !GetAtt Service1LogGroup.Arn
+
+  LatticeService2AuthPolicy:
+    Type: AWS::VpcLattice::AuthPolicy
+    Properties:
+      ResourceIdentifier: !Ref LatticeService2
+      Policy:
+        Statement:
+          - Effect: Allow
+            Principal: '*'
+            Action: '*'
+            Resource: '*'
+
+  Service2LogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      Tags:
+        - Key: Name
+          Value: lattice-service2-lg
+
+# ---------- SERVICE3: AWS LAMBDA FUNCTION ----------
+  LatticeService3:
+    Type: AWS::VpcLattice::Service
+    Properties:
+      Name: service3
+  
+  LatticeService3SNAssociation:
+    Type: AWS::VpcLattice::ServiceNetworkServiceAssociation
+    Properties:
+      ServiceIdentifier: !Ref LatticeService3
+      ServiceNetworkIdentifier: !Ref ServiceNetwork
+  
+  LatticeService3AccessLogSubscription:
+    Type: AWS::VpcLattice::AccessLogSubscription
+    Properties:
+      ResourceIdentifier: !Ref LatticeService3
+      DestinationArn: !GetAtt Service3LogGroup.Arn
+
+  LatticeService3AuthPolicy:
+    Type: AWS::VpcLattice::AuthPolicy
+    Properties:
+      ResourceIdentifier: !Ref LatticeService3
+      Policy:
+        Statement:
+          - Effect: Allow
+            Principal: '*'
+            Action: '*'
+            Resource: '*'
+
+  Service3LogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      Tags:
+        - Key: Name
+          Value: lattice-service3-lg
+
+# ---------- SERVICE4: AUTOSCALING GROUP ----------
+  LatticeService4:
+    Type: AWS::VpcLattice::Service
+    Properties:
+      Name: service4
+  
+  LatticeService4SNAssociation:
+    Type: AWS::VpcLattice::ServiceNetworkServiceAssociation
+    Properties:
+      ServiceIdentifier: !Ref LatticeService4
+      ServiceNetworkIdentifier: !Ref ServiceNetwork
+  
+  LatticeService4AccessLogSubscription:
+    Type: AWS::VpcLattice::AccessLogSubscription
+    Properties:
+      ResourceIdentifier: !Ref LatticeService4
+      DestinationArn: !GetAtt Service4LogGroup.Arn
+
+  LatticeService4AuthPolicy:
+    Type: AWS::VpcLattice::AuthPolicy
+    Properties:
+      ResourceIdentifier: !Ref LatticeService4
+      Policy:
+        Statement:
+          - Effect: Allow
+            Principal: '*'
+            Action: '*'
+            Resource: '*'
+
+  Service4LogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      Tags:
+        - Key: Name
+          Value: lattice-service4-lg
+
+Outputs:
+  Service1:
+    Description: VPC Lattice Service 1 ID.
+    Value: !Ref LatticeService1
+  Service1DomainName:
+    Description: VPC Lattice Service 1 Domain Name.
+    Value: !GetAtt LatticeService1.DnsEntry.DomainName
+  Service2:
+    Description: VPC Lattice Service 2 ID.
+    Value: !Ref LatticeService2
+  Service2DomainName:
+    Description: VPC Lattice Service 2 Domain Name.
+    Value: !GetAtt LatticeService2.DnsEntry.DomainName
+  Service3:
+    Description: VPC Lattice Service 3 ID.
+    Value: !Ref LatticeService3
+  Service3DomainName:
+    Description: VPC Lattice Service 3 Domain Name.
+    Value: !GetAtt LatticeService3.DnsEntry.DomainName
+  Service4:
+    Description: VPC Lattice Service 4 ID.
+    Value: !Ref LatticeService4
+  Service4DomainName:
+    Description: VPC Lattice Service 4 Domain Name.
+    Value: !GetAtt LatticeService4.DnsEntry.DomainName

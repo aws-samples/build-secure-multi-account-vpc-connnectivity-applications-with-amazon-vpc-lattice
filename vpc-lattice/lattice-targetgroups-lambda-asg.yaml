@@ -1,0 +1,57 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: "Amazon VPC Lattice - VPC Lattice Target Groups (Lambda function and AutoScaling group)"
+
+Parameters:
+  ServiceNetwork:
+    Type: String
+    Description: Service Network ID.
+  LambdaArn:
+    Type: String
+    Description: Lambda function ARN.
+  ASGVpcId:
+    Type: String
+    Description: VPC ID - Auto Scaling group.
+  InstanceID1: 
+    Type: String
+    Description: Instance 1 ID.
+  InstanceID2:
+    Type: String
+    Description: Instance 2 ID.
+
+Resources:
+# ---------- LAMBDA FUNCTION TARGET GROUP ----------
+  LatticeLambdaTarget:
+    Type: AWS::VpcLattice::TargetGroup
+    Properties:
+      Name: lambda-target
+      Type: LAMBDA
+      Targets:
+        - Id: !Ref LambdaArn
+
+# ---------- AUTO SCALING GROUP TARGET GROUP (INSTANCE) ----------
+  LatticeASGTarget:
+    Type: AWS::VpcLattice::TargetGroup
+    Properties:
+      Name: asg-target
+      Type: INSTANCE
+      Config:
+        Protocol: HTTP
+        Port: 80
+        ProtocolVersion: HTTP1
+        VpcIdentifier: !Ref ASGVpcId
+        HealthCheck:
+          Enabled: false
+      Targets:
+        - Id: !Ref InstanceID1
+          Port: 80
+        - Id: !Ref InstanceID2
+          Port: 80
+
+Outputs:
+  LatticeLambdaTarget:
+    Description: VPC Lattice Lambda Target Group.
+    Value: !Ref LatticeLambdaTarget
+  LatticeASGTarget:
+    Description: VPC Lattice ASG Target Group.
+    Value: !Ref LatticeASGTarget

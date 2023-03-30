@@ -1,0 +1,75 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: "Amazon VPC Lattice - EKS VPCs Service Network Associations"
+
+Parameters:
+  Cluster1VpcID:
+    Type: String
+    Description: Cluster1 VPC.
+  Cluster1SG:
+    Type: String
+    Description: Cluster1 Security Group.
+  Cluster2VpcID:
+    Type: String
+    Description: Cluster2 VPC.
+  Cluster2SG:
+    Type: String
+    Description: Cluster2 Security Group.
+  ServiceNetwork:
+    Type: String
+    Description: "Service Network ID."
+
+Resources:
+# ---------- CLUSTER 1 ----------
+  LatticeCluster1VPCAssociation:
+    Type: AWS::VpcLattice::ServiceNetworkVpcAssociation
+    Properties:
+      SecurityGroupIds:
+        - !Ref Cluster1LatticeSecurityGroup
+      ServiceNetworkIdentifier: !Ref ServiceNetwork
+      VpcIdentifier: !Ref Cluster1VpcID
+  
+  Cluster1LatticeSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: lattice-sg
+      GroupDescription: VPC Lattice Security Group
+      VpcId: !Ref Cluster1VpcID
+      SecurityGroupIngress:
+        - Description: Allowing HTTP
+          IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          SourceSecurityGroupId: !Ref Cluster1SG
+        - Description: Allowing HTTPS
+          IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          SourceSecurityGroupId: !Ref Cluster1SG
+
+# ---------- CLUSTER 2 ----------
+  LatticeCluster2VPCAssociation:
+    Type: AWS::VpcLattice::ServiceNetworkVpcAssociation
+    Properties:
+      SecurityGroupIds:
+        - !Ref Cluster2LatticeSecurityGroup
+      ServiceNetworkIdentifier: !Ref ServiceNetwork
+      VpcIdentifier: !Ref Cluster2VpcID
+  
+  Cluster2LatticeSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: lattice-sg
+      GroupDescription: VPC Lattice Security Group
+      VpcId: !Ref Cluster2VpcID
+      SecurityGroupIngress:
+        - Description: Allowing HTTP
+          IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          SourceSecurityGroupId: !Ref Cluster2SG
+        - Description: Allowing HTTPS
+          IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          SourceSecurityGroupId: !Ref Cluster2SG
