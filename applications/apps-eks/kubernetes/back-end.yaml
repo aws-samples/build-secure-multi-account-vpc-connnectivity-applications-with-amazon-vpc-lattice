@@ -18,7 +18,7 @@ spec:
     spec:
       containers:
       - name: back-end
-        image: public.ecr.aws/y1b0a4i8/vpc-lattice-examples:backend
+        image: public.ecr.aws/p1m4i5x9/backend
         imagePullPolicy: Always
         env:
         - name: LATTICEURL
